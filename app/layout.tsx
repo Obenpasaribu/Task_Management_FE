@@ -5,6 +5,7 @@ import { UserProvider } from "@/context/UserContext";
 import { SidebarProvider } from "@/context/SidebarContext";
 import Navbar from "@/components/Navbar";
 import { MainContent } from "@/components/MainContent";
+import ChatbotWidget from "@/components/ChatbotWidget";
 
 export const metadata: Metadata = {
   title: "Task Management App",
@@ -24,6 +25,7 @@ export default function RootLayout({
             <SidebarProvider>
               <Navbar />
               <MainContent>{children}</MainContent>
+              <ChatbotWidget />
             </SidebarProvider>
           </UserProvider>
         </AuthProvider>
