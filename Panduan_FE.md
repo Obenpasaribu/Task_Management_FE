@@ -306,7 +306,74 @@ err?.response?.status;
 
 ---
 
-## 9. Alur Fitur Utama di Frontend
+## 9. Fitur Chatbot (Task Assistant)
+
+### 9.0 Deskripsi Chatbot Widget
+
+Chatbot widget adalah fitur asisten interaktif yang tersedia sebagai floating chat di pojok kanan bawah aplikasi. Widget ini dapat diakses di **semua halaman** setelah user login.
+
+**File yang terlibat:**
+
+- `components/ChatbotWidget.tsx` - UI dan logic chatbot widget
+- `hooks/useChatbot.ts` - hook untuk berkomunikasi dengan backend chatbot API
+
+### 9.0.1 Cara Menggunakan Chatbot
+
+1. **Buka Chat Widget**
+   - Klik tombol chat bundar berwarna hitam di pojok kanan bawah layar
+   - Panel chat akan terbuka
+
+2. **Lihat Pesan Sambutan**
+   - Pertama kali membuka, akan melihat pesan sambutan dari assistant
+   - Contoh: "Halo! Tanyakan apa saja seputar task kamu, misalnya 'berapa task yang belum selesai?'"
+
+3. **Ketik Pertanyaan**
+   - Masukkan pertanyaan di input field
+   - Contoh pertanyaan:
+     - "Berapa task yang belum selesai?"
+     - "Siapa yang di-assign task terbanyak?"
+     - "Apa deadline task hari ini?"
+
+4. **Kirim Pertanyaan**
+   - Tekan **Enter** atau klik tombol **Kirim** (ikon pesawat kertas)
+   - Pertanyaan akan ditampilkan sebagai bubble chat biru di sebelah kanan
+   - Loading indicator "Mengetik..." akan muncul saat menunggu jawaban
+
+5. **Baca Jawaban**
+   - Jawaban dari assistant akan muncul sebagai bubble chat abu-abu di sebelah kiri
+   - Panel akan auto-scroll ke pesan terbaru
+
+6. **Tutup Chat**
+   - Klik tombol X di pojok kanan atas panel
+   - Atau klik tombol floating chat lagi untuk menutup
+
+### 9.0.2 Request dan Response Format
+
+**Request yang dikirim:**
+
+```json
+{
+  "message": "berapa task yang belum selesai?"
+}
+```
+
+**Response yang diharapkan dari backend:**
+
+```json
+{
+  "answer": "Anda memiliki 5 task yang belum selesai"
+}
+```
+
+### 9.0.3 Endpoint Backend yang Dibutuhkan
+
+**Endpoint:** `POST /api/v1/chatbot`
+
+Backend perlu membuat endpoint ini untuk memproses pertanyaan user.
+
+---
+
+## 10. Alur Fitur Utama di Frontend
 
 ### 9.1 Halaman Task
 
@@ -379,7 +446,7 @@ Halaman ini terkait manajemen resource dan pemetaan permission.
 
 ---
 
-## 10. Role dan Permission
+## 11. Role dan Permission
 
 Akses UI di frontend dibatasi berdasarkan role user.
 
@@ -405,7 +472,7 @@ Jika user tidak punya izin, frontend akan menampilkan pesan akses ditolak.
 
 ---
 
-## 11. State Management Frontend
+## 12. State Management Frontend
 
 Frontend memakai pendekatan sederhana dengan React Context dan custom hooks:
 
@@ -431,7 +498,7 @@ Frontend memakai localStorage untuk menyimpan:
 
 ---
 
-## 12. Cara Kerja Fallback Data Lokal
+## 13. Cara Kerja Fallback Data Lokal
 
 Jika backend tidak tersedia atau request gagal, frontend tidak langsung mati. Aplikasi akan mencoba memakai data lokal dari:
 
@@ -453,7 +520,7 @@ try {
 
 ---
 
-## 13. Tips Saat Menggunakan Frontend
+## 14. Tips Saat Menggunakan Frontend
 
 ### 13.1 Pastikan backend sudah berjalan
 
@@ -487,7 +554,7 @@ Error frontend biasanya muncul karena:
 
 ---
 
-## 14. Contoh Skenario Penggunaan
+## 15. Contoh Skenario Penggunaan
 
 ### Skenario 1: Login dan lihat task
 
@@ -519,7 +586,7 @@ Error frontend biasanya muncul karena:
 
 ---
 
-## 15. Endpoint Backend yang Sering Dipakai dari Frontend
+## 16. Endpoint Backend yang Sering Dipakai dari Frontend
 
 Berikut beberapa endpoint yang paling sering dipakai:
 
@@ -536,7 +603,7 @@ Berikut beberapa endpoint yang paling sering dipakai:
 
 ---
 
-## 16. Ringkasan Singkat
+## 17. Ringkasan Singkat
 
 Frontend Task Management bekerja dengan pola berikut:
 
