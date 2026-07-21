@@ -1,4 +1,3 @@
-import "./globals.css";
 import type { Metadata } from "next";
 import { AuthProvider } from "@/context/AuthContext";
 import { UserProvider } from "@/context/UserContext";

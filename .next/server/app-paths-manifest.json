@@ -1,5 +1,5 @@
 {
-  "/api/proxy/[...path]/route": "app/api/proxy/[...path]/route.js",
-  "/tasks/new/page": "app/tasks/new/page.js",
-  "/tasks/page": "app/tasks/page.js"
+  "/tasks/page": "app/tasks/page.js",
+  "/login/page": "app/login/page.js",
+  "/tasks/new/page": "app/tasks/new/page.js"
 }
