@@ -2,130 +2,104 @@
 
 ## 1. Tech Stack
 
-| Layer | Teknologi |
-|---|---|
-| Frontend | Next.js (React), TypeScript, Tailwind CSS, Axios/Fetch |
-| Backend | Golang + Gin |
-| ORM | GORM |
-| Migration | golang-migrate |
-| Database | PostgreSQL |
-| Auth | JWT (golang-jwt) |
-| Dokumentasi API | Postman Collection |
-| ERD | dbdiagram.io |
+| Layer           | Teknologi                                              |
+| --------------- | ------------------------------------------------------ |
+| Frontend        | Next.js (React), TypeScript, Tailwind CSS, Axios/Fetch |
+| Backend         | Golang + Gin                                           |
+| ORM             | GORM                                                   |
+| Migration       | golang-migrate                                         |
+| Database        | PostgreSQL                                             |
+| Auth            | JWT (golang-jwt)                                       |
+| Dokumentasi API | Postman Collection                                     |
+| ERD             | dbdiagram.io                                           |
 
 ---
 
-## 2. Arsitektur Database (PostgreSQL + Migration)
+## 2. Arsitektur Database (PostgreSQL + GORM)
 
-### 2.1 Skema Tabel
+### 2.1 Skema Tabel Saat Ini
+
+Backend saat ini memakai PostgreSQL dengan koneksi GORM. Struktur tabel utama dibuat lewat `AutoMigrate` di `config/database.go`, sehingga skema disinkronkan langsung dari model Go.
 
 **users**
 | Kolom | Tipe | Keterangan |
 |---|---|---|
-| id | UUID / SERIAL PK | |
+| id | SERIAL PK | primary key |
 | name | VARCHAR(100) | nama user |
-| email | VARCHAR(100) UNIQUE | untuk login |
-| password_hash | VARCHAR(255) | hashed password |
-| created_at | TIMESTAMP | default now() |
-| updated_at | TIMESTAMP | default now() |
+| email | VARCHAR(100) UNIQUE | email login |
+| password_hash | VARCHAR(255) | hasil hash bcrypt |
+| role | VARCHAR(50) | `admin`, `lead`, `employee` |
+| status | VARCHAR(50) | `active`, `inactive` |
 
 **tasks**
 | Kolom | Tipe | Keterangan |
 |---|---|---|
-| id | UUID / SERIAL PK | |
+| id | SERIAL PK | primary key |
 | title | VARCHAR(150) | judul task |
-| description | TEXT | deskripsi |
-| status | VARCHAR(20) / ENUM | 'todo', 'in_progress', 'done' |
-| deadline | DATE / TIMESTAMP | |
+| description | TEXT | deskripsi task |
+| status | VARCHAR(20) | `todo`, `in_progress`, `done` |
+| deadline | TIMESTAMP | batas waktu |
 | assignee_id | INTEGER FK -> users(id) | penanggung jawab |
-| created_by | INTEGER FK -> users(id) | siapa yang buat task |
+| created_by | INTEGER FK -> users(id) | pembuat task |
 | created_at | TIMESTAMP | default now() |
 | updated_at | TIMESTAMP | default now() |
 
-**Relasi:** satu `user` bisa memiliki banyak `task` sebagai assignee (1 - N). Ini relasi yang wajib ada sesuai requirement.
+**teams**
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| id | SERIAL PK | primary key |
+| name | VARCHAR(100) | nama tim |
+| description | TEXT | deskripsi tim |
+| lead_id | INTEGER FK -> users(id) | pemimpin tim |
+| created_at | TIMESTAMP | default now() |
+| updated_at | TIMESTAMP | default now() |
 
-### 2.2 Struktur folder migration (golang-migrate)
+**team_members**
+| Kolom | Tipe | Keterangan |
+|---|---|---|
+| team_id | INTEGER PK/FK | relasi ke teams |
+| user_id | INTEGER PK/FK | relasi ke users |
+
+**resources, permissions, roles, role_permissions, user_roles**
+| Tabel | Fungsi |
+|---|---|
+| resources | nama resource yang diproteksi, contoh `tasks`, `teams` |
+| permissions | action per resource, contoh `view`, `create`, `update`, `delete` |
+| roles | role sistem seperti `admin`, `lead`, `employee` |
+| role_permissions | mapping role ke permission |
+| user_roles | mapping user ke role |
+
+**Relasi utama:**
+
+- satu user bisa memiliki banyak task sebagai assignee atau creator.
+- satu team memiliki satu lead dan banyak member.
+- role dan permission dipakai untuk sistem RBAC.
+
+### 2.2 Struktur folder migration saat ini
+
+Folder migration masih berisi file SQL awal, tetapi implementasi backend saat ini lebih mengandalkan `AutoMigrate` lewat GORM. Jadi skema utama didefinisikan di model Go dan disinkronkan saat aplikasi start.
 
 ```
 backend/
-└── migrations/
-    ├── 000001_create_users_table.up.sql
-    ├── 000001_create_users_table.down.sql
-    ├── 000002_create_tasks_table.up.sql
-    ├── 000002_create_tasks_table.down.sql
-    ├── 000003_add_indexes.up.sql
-    └── 000003_add_indexes.down.sql
+├── migrations/
+│   ├── 000001_create_users_table.up.sql
+│   ├── 000001_create_users_table.down.sql
+│   ├── 000002_create_tasks_table.up.sql
+│   └── 000002_create_tasks_table.down.sql
+└── config/database.go
 ```
 
-Install tool migrate:
-```bash
-go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+### 2.3 Koneksi database (pakai .env)
+
+Connection string yang terbentuk mengikuti variabel environment:
+
+```text
+postgresql://<user>:<password>@<host>:<port>/<database>?sslmode=disable
 ```
 
-### 2.3 Contoh migration `000001_create_users_table.up.sql`
+Implementasi saat ini ada di `config/database.go`:
 
-```sql
-CREATE TABLE users (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL,
-    email VARCHAR(100) NOT NULL UNIQUE,
-    password_hash VARCHAR(255) NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT now(),
-    updated_at TIMESTAMP NOT NULL DEFAULT now()
-);
-```
-
-`000001_create_users_table.down.sql`
-```sql
-DROP TABLE IF EXISTS users;
-```
-
-### 2.4 Contoh migration `000002_create_tasks_table.up.sql`
-
-```sql
-CREATE TYPE task_status AS ENUM ('todo', 'in_progress', 'done');
-
-CREATE TABLE tasks (
-    id SERIAL PRIMARY KEY,
-    title VARCHAR(150) NOT NULL,
-    description TEXT,
-    status task_status NOT NULL DEFAULT 'todo',
-    deadline DATE,
-    assignee_id INTEGER REFERENCES users(id),
-    created_by INTEGER REFERENCES users(id),
-    created_at TIMESTAMP NOT NULL DEFAULT now(),
-    updated_at TIMESTAMP NOT NULL DEFAULT now()
-);
-
-CREATE INDEX idx_tasks_assignee_id ON tasks(assignee_id);
-CREATE INDEX idx_tasks_status ON tasks(status);
-```
-
-`000002_create_tasks_table.down.sql`
-```sql
-DROP TABLE IF EXISTS tasks;
-DROP TYPE IF EXISTS task_status;
-```
-
-### 2.5 Koneksi database (pakai .env kamu)
-
-Connection string yang terbentuk:
-```
-postgresql://postgres:postgres@127.0.0.1:5432/db_Task?sslmode=disable
-```
-
-`config/database.go`:
 ```go
-package config
-
-import (
-	"fmt"
-	"os"
-
-	"gorm.io/driver/postgres"
-	"gorm.io/gorm"
-)
-
 func ConnectDB() (*gorm.DB, error) {
 	dsn := fmt.Sprintf(
 		"host=%s user=%s password=%s dbname=%s port=%s sslmode=disable",
@@ -135,93 +109,126 @@ func ConnectDB() (*gorm.DB, error) {
 		os.Getenv("DB_DATABASE"),
 		os.Getenv("DB_PORT"),
 	)
-	return gorm.Open(postgres.Open(dsn), &gorm.Config{})
-}
-```
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	if err != nil {
+		return nil, err
+	}
 
-Perintah migration:
-```bash
-migrate create -ext sql -dir migrations -seq create_users_table
-migrate -path migrations -database "postgresql://postgres:postgres@127.0.0.1:5432/db_Task?sslmode=disable" up
+	if err := db.AutoMigrate(&models.User{}, &models.Task{}, &models.Team{}, &models.TeamMember{}, &models.Resource{}, &models.Permission{}, &models.Role{}, &models.RolePermission{}, &models.UserRole{}); err != nil {
+		return nil, err
+	}
+
+	return db, nil
+}
 ```
 
 ---
 
 ## 3. Arsitektur Backend (Golang + Gin)
 
-### 3.1 Struktur Folder
+### 3.1 Struktur Folder Saat Ini
 
 ```
 backend/
 ├── cmd/
-│   └── main.go                    # entry point
+│   └── main.go
 ├── config/
-│   ├── config.go                  # load .env
-│   └── database.go                # koneksi GORM
+│   ├── config.go
+│   └── database.go
 ├── models/
-│   ├── user.go                    # struct User (GORM model)
-│   └── task.go                    # struct Task
+│   ├── user.go
+│   ├── task.go
+│   ├── team.go
+│   └── rbac.go
 ├── dto/
-│   ├── user_dto.go                # request/response schema
-│   └── task_dto.go
+│   ├── task_dto.go
+│   ├── team_dto.go
+│   └── user_dto.go
 ├── repositories/
-│   ├── user_repository.go         # query DB (interface + impl)
-│   └── task_repository.go
+│   ├── task_repository.go
+│   ├── team_repository.go
+│   └── user_repository.go
 ├── services/
-│   ├── auth_service.go            # business logic login
-│   └── task_service.go            # business logic task
+│   ├── auth_service.go
+│   ├── task_service.go
+│   ├── team_service.go
+│   ├── user_service.go
+│   └── user_reactivate_request.go
 ├── handlers/
-│   ├── auth_handler.go            # controller /login
-│   ├── user_handler.go            # controller /users
-│   └── task_handler.go            # controller /tasks
+│   ├── auth_handler.go
+│   ├── handlers.go
+│   ├── task_handler.go
+│   ├── team_handler.go
+│   ├── user_handler.go
+│   ├── role_handler.go
+│   ├── resource_handler.go
+│   ├── permission_handler.go
+│   └── user_role_handler.go
 ├── routes/
-│   └── routes.go                  # setup semua route
+│   └── routes.go
 ├── middlewares/
-│   └── jwt_middleware.go          # verifikasi JWT
+│   ├── jwt_middleware.go
+│   └── permission_middleware.go
 ├── utils/
-│   ├── jwt.go                     # generate & parse token
-│   └── hash.go                    # bcrypt password
-├── migrations/                    # golang-migrate files
-├── go.mod
-├── go.sum
-└── .env
+│   ├── jwt.go
+│   └── hash.go
+└── migrations/
 ```
 
-**Pola arsitektur:** Layered Architecture — `Route → Handler (controller) → Service (business logic) → Repository (akses DB via GORM) → Model`. Pola ini membuat kode modular, gampang di-mock untuk testing, dan sesuai kriteria penilaian "struktur kode rapi & readable".
+**Pola arsitektur:** Layered Architecture — `Route → Handler → Service → Repository → Model`. Struktur ini dipakai untuk memisahkan autentikasi, business logic, data access, dan model domain.
 
-### 3.2 Contoh potongan kode
+### 3.2 Contoh Implementasi Saat Ini
 
-`models/task.go`
+`models/user.go`
+
 ```go
-package models
-
-import "time"
-
-type Task struct {
-	ID          uint      `gorm:"primaryKey" json:"id"`
-	Title       string    `gorm:"size:150;not null" json:"title"`
-	Description string    `json:"description"`
-	Status      string    `gorm:"size:20;default:'todo'" json:"status"`
-	Deadline    *time.Time `json:"deadline"`
-	AssigneeID  *uint     `json:"assignee_id"`
-	Assignee    *User     `gorm:"foreignKey:AssigneeID" json:"assignee,omitempty"`
-	CreatedBy   *uint     `json:"created_by"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+type User struct {
+	ID           uint   `gorm:"primaryKey" json:"id"`
+	Name         string `gorm:"size:100;not null" json:"name"`
+	Email        string `gorm:"size:100;not null;unique" json:"email"`
+	PasswordHash string `gorm:"size:255;not null" json:"-"`
+	Role         string `gorm:"size:50;not null;default:'employee'" json:"role"`
+	Status       string `gorm:"size:50;not null;default:'active'" json:"status"`
 }
 ```
 
-`routes/routes.go` (garis besar)
+`routes/routes.go`
+
 ```go
 func SetupRoutes(r *gin.Engine, h *handlers.Handlers) {
 	api := r.Group("/api/v1")
 
 	api.POST("/auth/login", h.Auth.Login)
+	api.POST("/auth/register", h.Auth.Register)
+	api.POST("/auth/signup", h.Auth.Register)
+	api.POST("/register", h.Auth.Register)
+	api.POST("/users/register", h.Auth.Register)
+	api.POST("/auth/users", h.Auth.Register)
 
 	protected := api.Group("/")
 	protected.Use(middlewares.JWTMiddleware())
 	{
 		protected.GET("/users", h.User.GetAll)
+		protected.GET("/users/:id", h.User.GetByID)
+		protected.PUT("/users/:id", h.User.Update)
+		protected.DELETE("/users/:id", h.User.Deactivate)
+		protected.POST("/users/:id/reactivate", h.User.Reactivate)
+
+		protected.GET("/teams", h.Team.GetAll)
+		protected.GET("/teams/my", h.Team.GetMine)
+		protected.GET("/teams/:id", h.Team.GetByID)
+		protected.POST("/teams", h.Team.Create)
+		protected.PUT("/teams/:id", h.Team.Update)
+		protected.DELETE("/teams/:id", h.Team.Delete)
+
+		protected.POST("/admin/roles", h.Role.Create)
+		protected.GET("/admin/roles", h.Role.List)
+		protected.POST("/admin/resources", h.Resource.Create)
+		protected.GET("/admin/resources", h.Resource.List)
+		protected.POST("/admin/permissions", h.Permission.Create)
+		protected.GET("/admin/permissions", h.Permission.List)
+		protected.POST("/admin/permissions/assign", h.Permission.AssignToRole)
+		protected.POST("/admin/user-roles", h.UserRole.Assign)
 
 		protected.GET("/tasks", h.Task.GetAll)
 		protected.POST("/tasks", h.Task.Create)
@@ -234,34 +241,52 @@ func SetupRoutes(r *gin.Engine, h *handlers.Handlers) {
 ```
 
 Library utama yang dipakai:
+
 - `github.com/gin-gonic/gin` — HTTP framework
 - `gorm.io/gorm` + `gorm.io/driver/postgres` — ORM
-- `github.com/golang-jwt/jwt/v5` — JWT
-- `golang.org/x/crypto/bcrypt` — hash password
+- `github.com/golang-jwt/jwt/v5` — JWT auth
+- `golang.org/x/crypto/bcrypt` — password hashing
 - `github.com/joho/godotenv` — load `.env`
-- `github.com/golang-migrate/migrate/v4` — migration
 
-### 3.3 Endpoint yang dibutuhkan
+### 3.3 Endpoint Backend Saat Ini
 
-| Method | Endpoint | Fungsi | Auth |
-|---|---|---|---|
-| POST | `/api/v1/auth/login` | login, return JWT | - |
-| GET | `/api/v1/users` | daftar user (untuk dropdown assignee) | JWT |
-| GET | `/api/v1/tasks` | list semua task | JWT |
-| POST | `/api/v1/tasks` | tambah task | JWT |
-| GET | `/api/v1/tasks/{id}` | detail task | JWT |
-| PUT | `/api/v1/tasks/{id}` | edit task | JWT |
-| PATCH | `/api/v1/tasks/{id}/status` | update status saja | JWT |
-| DELETE | `/api/v1/tasks/{id}` | hapus task | JWT |
-| POST | `/api/v1/chat` | (bonus) chatbot query task | JWT |
+| Method | Endpoint                           | Fungsi                    | Auth |
+| ------ | ---------------------------------- | ------------------------- | ---- |
+| POST   | `/api/v1/auth/login`               | login user                | -    |
+| POST   | `/api/v1/auth/register`            | register user             | -    |
+| GET    | `/api/v1/users`                    | daftar user               | JWT  |
+| GET    | `/api/v1/users/:id`                | detail user               | JWT  |
+| PUT    | `/api/v1/users/:id`                | update user               | JWT  |
+| DELETE | `/api/v1/users/:id`                | deactivate user           | JWT  |
+| POST   | `/api/v1/users/:id/reactivate`     | reactivate user           | JWT  |
+| GET    | `/api/v1/teams`                    | daftar team               | JWT  |
+| GET    | `/api/v1/teams/my`                 | team milik user login     | JWT  |
+| POST   | `/api/v1/teams`                    | tambah team               | JWT  |
+| PUT    | `/api/v1/teams/:id`                | update team               | JWT  |
+| DELETE | `/api/v1/teams/:id`                | hapus team                | JWT  |
+| POST   | `/api/v1/admin/roles`              | buat role                 | JWT  |
+| GET    | `/api/v1/admin/roles`              | daftar role               | JWT  |
+| POST   | `/api/v1/admin/resources`          | buat resource             | JWT  |
+| GET    | `/api/v1/admin/resources`          | daftar resource           | JWT  |
+| POST   | `/api/v1/admin/permissions`        | buat permission           | JWT  |
+| GET    | `/api/v1/admin/permissions`        | daftar permission         | JWT  |
+| POST   | `/api/v1/admin/permissions/assign` | assign permission ke role | JWT  |
+| POST   | `/api/v1/admin/user-roles`         | assign role ke user       | JWT  |
+| GET    | `/api/v1/tasks`                    | daftar task               | JWT  |
+| POST   | `/api/v1/tasks`                    | tambah task               | JWT  |
+| GET    | `/api/v1/tasks/:id`                | detail task               | JWT  |
+| PUT    | `/api/v1/tasks/:id`                | update task               | JWT  |
+| PATCH  | `/api/v1/tasks/:id/status`         | update status task        | JWT  |
+| DELETE | `/api/v1/tasks/:id`                | hapus task                | JWT  |
 
-### 3.4 Alur Auth (JWT)
+### 3.4 Alur Auth dan RBAC Saat Ini
 
-1. User login → `POST /auth/login` dengan email/password (bisa hardcode/seed 1-2 user awal via migration atau seeder terpisah).
-2. Backend verifikasi password (bcrypt compare) → generate JWT pakai `golang-jwt` (access token, expiry misal 1 jam), payload berisi `user_id` & `email`.
-3. Frontend simpan token (cookie httpOnly atau localStorage untuk simplicity).
-4. Setiap request ke endpoint task/user disertakan header `Authorization: Bearer <token>`.
-5. `middlewares/jwt_middleware.go` memverifikasi token di setiap request ke route yang protected, lalu inject `user_id` ke context Gin.
+1. User login/register melalui endpoint auth.
+2. Backend memvalidasi password, lalu menghasilkan JWT menggunakan `utils/jwt.go`.
+3. Setiap request protected wajib membawa `Authorization: Bearer <token>`.
+4. `middlewares/jwt_middleware.go` memverifikasi token dan menyimpan `user_id` ke context Gin.
+5. `middlewares/permission_middleware.go` dapat memeriksa permission user terhadap resource/action tertentu untuk endpoint yang perlu proteksi tambahan.
+6. Sistem ini mendukung role-based access control melalui tabel `roles`, `resources`, `permissions`, `role_permissions`, dan `user_roles`.
 
 ---
 
@@ -315,6 +340,7 @@ frontend/
 6. **Middleware** cek token; kalau tidak ada, redirect ke `/login`.
 
 ### 4.3 State Management
+
 Untuk aplikasi sesederhana ini, cukup pakai React Context (AuthContext) + custom hooks (useTasks, useUsers) dengan fetch/SWR/React Query. Tidak perlu Redux.
 
 ---
