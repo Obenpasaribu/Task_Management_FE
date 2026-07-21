@@ -2,16 +2,16 @@
 
 ## 1. Tech Stack
 
-| Layer           | Teknologi                                              |
-| --------------- | ------------------------------------------------------ |
-| Frontend        | Next.js (React), TypeScript, Tailwind CSS, Axios/Fetch |
-| Backend         | Golang + Gin                                           |
-| ORM             | GORM                                                   |
-| Migration       | golang-migrate                                         |
-| Database        | PostgreSQL                                             |
-| Auth            | JWT (golang-jwt)                                       |
-| Dokumentasi API | Postman Collection                                     |
-| ERD             | dbdiagram.io                                           |
+| Layer           | Teknologi                                                                           |
+| --------------- | ----------------------------------------------------------------------------------- |
+| Frontend        | Next.js 14 (App Router), React 18, TypeScript, Tailwind CSS, Axios, Next Middleware |
+| Backend         | Golang + Gin                                                                        |
+| ORM             | GORM                                                                                |
+| Migration       | golang-migrate                                                                      |
+| Database        | PostgreSQL                                                                          |
+| Auth            | JWT (golang-jwt)                                                                    |
+| Dokumentasi API | Postman Collection                                                                  |
+| ERD             | dbdiagram.io                                                                        |
 
 ---
 
@@ -292,56 +292,83 @@ Library utama yang dipakai:
 
 ## 4. Arsitektur Frontend (Next.js)
 
-### 4.1 Struktur Folder (App Router)
+### 4.1 Struktur Folder Saat Ini
 
 ```
-frontend/
+Task_Management_FE/
 ├── app/
+│   ├── api/
+│   │   └── proxy/
+│   │       └── [...path]/
+│   │           └── route.ts         # proxy request ke backend
 │   ├── layout.tsx
-│   ├── page.tsx                  # redirect ke /login atau /tasks
+│   ├── page.tsx                     # redirect ke /tasks
 │   ├── login/
 │   │   └── page.tsx
-│   └── tasks/
-│       ├── page.tsx              # list task
-│       ├── new/
-│       │   └── page.tsx          # form tambah task
-│       └── [id]/
-│           └── edit/
-│               └── page.tsx      # form edit task
+│   ├── tasks/
+│   │   ├── page.tsx                 # daftar task
+│   │   ├── new/
+│   │   │   └── page.tsx             # form tambah task
+│   │   └── [id]/
+│   │       └── edit/
+│   │           └── page.tsx         # form edit task
+│   ├── team/
+│   │   └── page.tsx
+│   ├── team-task/
+│   │   └── page.tsx
+│   ├── user-management/
+│   │   └── page.tsx
+│   └── resources/
+│       └── page.tsx
 ├── components/
+│   ├── Navbar.tsx
+│   ├── MainContent.tsx
+│   ├── PermissionGuard.tsx
 │   ├── TaskCard.tsx
 │   ├── TaskForm.tsx
 │   ├── TaskTable.tsx
 │   ├── StatusBadge.tsx
-│   ├── AssigneeDropdown.tsx
-│   └── Navbar.tsx
-├── lib/
-│   ├── api.ts                    # axios instance + interceptor JWT
-│   └── auth.ts                   # simpan/ambil token
+│   └── AssigneeDropdown.tsx
+├── context/
+│   ├── AuthContext.tsx
+│   ├── UserContext.tsx
+│   └── SidebarContext.tsx
 ├── hooks/
 │   ├── useTasks.ts
+│   ├── useTeams.ts
 │   └── useUsers.ts
-├── context/
-│   └── AuthContext.tsx
+├── lib/
+│   ├── api.ts                       # axios instance + interceptor JWT
+│   ├── auth.ts                      # simpan/ambil token dari storage
+│   ├── mockData.ts                  # fallback data lokal
+│   └── permissions.ts               # matrix permission per role
 ├── types/
+│   ├── permission.ts
 │   ├── task.ts
+│   ├── team.ts
 │   └── user.ts
-├── middleware.ts                 # proteksi route (redirect kalau belum login)
-└── .env.local                    # NEXT_PUBLIC_API_URL=http://localhost:8000
+├── middleware.ts                    # proteksi route dasar
+└── package.json
 ```
 
-### 4.2 Alur Frontend
+### 4.2 Alur Frontend Saat Ini
 
-1. **Login page** → submit ke `/api/v1/auth/login` → simpan JWT → redirect ke `/tasks`.
-2. **Tasks page** → fetch `/api/v1/tasks` + fetch `/api/v1/users` (untuk dropdown assignee) → tampilkan tabel/list.
-3. **Tambah/Edit task** → form dengan field judul, deskripsi, status (select), deadline (date picker), assignee (dropdown dari data user).
-4. **Update status** → bisa langsung dari dropdown/badge di tabel task (PATCH request).
-5. **Hapus task** → konfirmasi dulu (modal), lalu DELETE request.
-6. **Middleware** cek token; kalau tidak ada, redirect ke `/login`.
+1. Halaman login mengirim credential ke backend melalui axios instance yang sudah terkonfigurasi dengan JWT interceptor.
+2. Token hasil login disimpan ke localStorage dan cookie, lalu dipakai oleh `AuthContext` untuk mengatur status autentikasi aplikasi.
+3. Semua request ke backend lewat `lib/api.ts` dan route proxy di `app/api/proxy/[...path]/route.ts`, sehingga frontend bisa memanggil endpoint backend tanpa masalah CORS.
+4. Halaman seperti tasks, team, team-task, user-management, dan resources mengambil data lewat custom hooks (`useTasks`, `useTeams`, `useUsers`) yang juga menyediakan fallback data lokal dari `lib/mockData.ts` bila backend sedang tidak tersedia.
+5. Informasi user yang sedang login di-manage oleh `UserContext`, sedangkan state sidebar disimpan di `SidebarContext`.
+6. Navbar menampilkan menu berdasarkan role user melalui permission matrix di `lib/permissions.ts`. Komponen `PermissionGuard` dipakai untuk membatasi akses UI sesuai izin.
+7. Middleware memeriksa token saat user mengakses route yang diproteksi, dan akan mengarahkan ke `/login` bila belum login.
 
 ### 4.3 State Management
 
-Untuk aplikasi sesederhana ini, cukup pakai React Context (AuthContext) + custom hooks (useTasks, useUsers) dengan fetch/SWR/React Query. Tidak perlu Redux.
+Saat ini frontend memakai pendekatan yang sederhana namun cukup jelas:
+
+- React Context untuk auth (`AuthContext`), user (`UserContext`), dan sidebar (`SidebarContext`).
+- Custom hooks untuk fetching dan state domain (`useTasks`, `useTeams`, `useUsers`).
+- localStorage untuk menyimpan token, data user, dan data lokal fallback.
+- Tidak memakai Redux atau library state management global lain.
 
 ---
 
